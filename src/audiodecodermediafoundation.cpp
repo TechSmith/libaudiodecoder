@@ -239,7 +239,7 @@ int AudioDecoderMediaFoundation::seek(int sampleIdx)
 
     // record the next frame so that we can make sure we're there the next
     // time we get a buffer from MFSourceReader
-    m_nextFrame = seekTarget;
+    m_nextFrame = static_cast<int>(seekTarget);
     m_seeking = true;
     m_iCurrentPosition = result;
     return result;
@@ -265,7 +265,7 @@ int AudioDecoderMediaFoundation::read(int size, const SAMPLE *destination)
                            << "WARNING: Expected frames needed to be 0. Abandoning this file.";
                 m_dead = true;
             }
-            m_leftoverBufferPosition += framesRequested;
+            m_leftoverBufferPosition += static_cast<int>(framesRequested);
         }
     } else {
         // leftoverBuffer already empty or in the wrong position, clear it
@@ -352,7 +352,7 @@ int AudioDecoderMediaFoundation::read(int size, const SAMPLE *destination)
                 // If we can correct this immediately, write zeros and adjust
                 // m_nextFrame to pretend it never happened.
 
-                if (offshootFrames <= framesNeeded) {
+                if ( static_cast<size_t>(offshootFrames) <= framesNeeded) {
                     std::cerr << __FILE__ << __LINE__
                                << "Working around inaccurate seeking. Writing silence for"
                                << offshootFrames << "frames";
@@ -361,15 +361,15 @@ int AudioDecoderMediaFoundation::read(int size, const SAMPLE *destination)
                            sizeof(*pBufferCurpos) * offshootFrames *
                            m_iChannels);
                     // Now m_nextFrame == bufferPosition
-                    m_nextFrame += offshootFrames;
-                    framesNeeded -= offshootFrames;
+                    m_nextFrame += static_cast<int>(offshootFrames);
+                    framesNeeded -= static_cast<size_t>(offshootFrames);
                 } else {
                     // It's more complicated. The buffer we have just decoded is
                     // more than framesNeeded frames away from us. It's too hard
                     // for us to handle this correctly currently, so let's just
                     // try to get on with our lives.
                     m_seeking = false;
-                    m_nextFrame = bufferPosition;
+                    m_nextFrame = static_cast<int>(bufferPosition);
                     std::cerr << __FILE__ << __LINE__
                                << "Seek offshoot is too drastic. Cutting losses and pretending the current decoded audio buffer is the right seek point.";
                 }
@@ -390,7 +390,7 @@ int AudioDecoderMediaFoundation::read(int size, const SAMPLE *destination)
         // If the bufferLength is larger than the leftover buffer, re-allocate
         // it with 2x the space.
         if (bufferLength * m_iChannels > m_leftoverBufferSize) {
-            int newSize = m_leftoverBufferSize;
+            int newSize = static_cast<int>(m_leftoverBufferSize);
 
             while (newSize < bufferLength * m_iChannels) {
                 newSize *= 2;
@@ -418,7 +418,7 @@ releaseSample:
         if (error) break;
     }
 
-    m_nextFrame += framesRequested - framesNeeded;
+    m_nextFrame += static_cast<int>(framesRequested - framesNeeded);
     if (m_leftoverBufferLength > 0) {
         if (framesNeeded != 0) {
             std::cerr << __FILE__ << __LINE__
@@ -427,7 +427,7 @@ releaseSample:
         }
         m_leftoverBufferPosition = m_nextFrame;
     }
-    long samples_read = size - framesNeeded * m_iChannels;
+    long samples_read = size - static_cast<int>(framesNeeded) * m_iChannels;
     m_iCurrentPosition += samples_read;
     if (sDebug) { std::cout << "read() " << size << " returning " << samples_read << std::endl; }
 	
@@ -436,7 +436,7 @@ releaseSample:
 	if (m_iChannels == 2)
 	{
 		SAMPLE *destBufferFloat(const_cast<SAMPLE*>(destination));
-		for (unsigned long i = 0; i < samples_read; i++)
+		for (unsigned long i = 0; i < static_cast<unsigned long>(samples_read); i++)
 		{
 			destBufferFloat[i] = destBuffer[i] / (float)sampleMax;
 		}
@@ -444,7 +444,7 @@ releaseSample:
 	else //Assuming mono, duplicate into stereo frames...
 	{
 		SAMPLE *destBufferFloat(const_cast<SAMPLE*>(destination));
-		for (unsigned long i = 0; i < samples_read; i++)
+		for (unsigned long i = 0; i < static_cast<unsigned long>(samples_read); i++)
 		{
 			destBufferFloat[i] = destBuffer[i] / (float)sampleMax;
 		}
@@ -454,7 +454,7 @@ releaseSample:
 
 inline int AudioDecoderMediaFoundation::numSamples()
 {
-    int len(secondsFromMF(m_mfDuration) * m_iSampleRate * m_iChannels);
+    int len( static_cast<INT>(secondsFromMF(m_mfDuration)) * m_iSampleRate * m_iChannels );
     return len % m_iChannels == 0 ? len : len + 1;
 }
 
@@ -687,7 +687,7 @@ bool AudioDecoderMediaFoundation::readProperties()
     // QuadPart isn't available on compilers that don't support _int64. Visual
     // Studio 6.0 introduced the type in 1998, so I think we're safe here
     // -bkgood
-    m_fDuration = secondsFromMF(prop.hVal.QuadPart);
+    m_fDuration = static_cast<float>(secondsFromMF(prop.hVal.QuadPart));
     m_mfDuration = prop.hVal.QuadPart;
     std::cout << "SSMF: Duration: " << m_fDuration << std::endl;
     PropVariantClear(&prop);
@@ -710,7 +710,7 @@ void AudioDecoderMediaFoundation::copyFrames(
     short *dest, size_t *destFrames, const short *src, size_t srcFrames)
 {
     if (srcFrames > *destFrames) {
-        int samplesToCopy(*destFrames * m_iChannels);
+        int samplesToCopy( static_cast<int>(*destFrames) * m_iChannels );
         memcpy(dest, src, samplesToCopy * sizeof(*src));
         srcFrames -= *destFrames;
         memmove(m_leftoverBuffer,
@@ -719,7 +719,7 @@ void AudioDecoderMediaFoundation::copyFrames(
         *destFrames = 0;
         m_leftoverBufferLength = srcFrames;
     } else {
-        int samplesToCopy(srcFrames * m_iChannels);
+        int samplesToCopy( static_cast<int>(srcFrames) * m_iChannels );
         memcpy(dest, src, samplesToCopy * sizeof(*src));
         *destFrames -= srcFrames;
         if (src == m_leftoverBuffer) {
@@ -741,7 +741,7 @@ inline double AudioDecoderMediaFoundation::secondsFromMF(__int64 mf)
  */
 inline __int64 AudioDecoderMediaFoundation::mfFromSeconds(double sec)
 {
-    return sec * 1e7;
+    return static_cast<__int64>(sec * 1e7);
 }
 
 /**
@@ -749,7 +749,7 @@ inline __int64 AudioDecoderMediaFoundation::mfFromSeconds(double sec)
  */
 inline __int64 AudioDecoderMediaFoundation::frameFromMF(__int64 mf)
 {
-    return static_cast<double>(mf) * m_iSampleRate / 1e7;
+    return static_cast<__int64>( static_cast<double>(mf) * m_iSampleRate / 1e7 );
 }
 
 /**
@@ -757,5 +757,5 @@ inline __int64 AudioDecoderMediaFoundation::frameFromMF(__int64 mf)
  */
 inline __int64 AudioDecoderMediaFoundation::mfFromFrame(__int64 frame)
 {
-    return static_cast<double>(frame) / m_iSampleRate * 1e7;
+    return static_cast<__int64>( static_cast<double>(frame) / m_iSampleRate * 1e7 );
 }
